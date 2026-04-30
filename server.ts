@@ -36,34 +36,42 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 // Payme Merchant API Handler
-// Supporting both /api/payme and /api/payme/
 const paymeHandler = async (req: Request, res: Response) => {
-  // If it's a GET request, return a simple status (useful for verification)
+  // Set JSON content type explicitly for all responses
+  res.setHeader('Content-Type', 'application/json');
+
+  // If it's a GET request, return a simple status
   if (req.method === 'GET') {
-    return res.json({ status: "Payme API is active", path: req.path });
+    return res.json({ 
+      status: "Payme API is active", 
+      path: req.path,
+      method: req.method,
+      timestamp: new Date().toISOString()
+    });
   }
 
-  const { method, params, id } = req.body;
+  const { method, params, id } = req.body || {};
   const authHeader = req.headers.authorization;
 
-  console.log(`Payme Method: ${method}, Request ID: ${id}`);
+  console.log(`[Payme] Incoming - Method: ${method}, ID: ${id}`);
+  
+  if (!method) {
+    return res.json({ id, error: { code: -32600, message: "Invalid Request (missing method)" } });
+  }
 
-  // Basic Auth Check
-  // Payme sends: Authorization: Basic Base64(Paycom:SECRET_KEY)
   const paymeKey = process.env.PAYME_KEY;
   if (!paymeKey) {
-    console.error("CRITICAL: PAYME_KEY is not defined in environment variables");
-    return res.json({ id, error: { code: -32504, message: "Server configuration error (missing key)" } });
+    console.error("CRITICAL: PAYME_KEY is not defined");
+    return res.json({ id, error: { code: -32504, message: "Server configuration error" } });
   }
 
   const expectedAuth = `Basic ${Buffer.from(`Paycom:${paymeKey}`).toString('base64')}`;
   
   if (!authHeader || authHeader !== expectedAuth) {
-    console.warn(`Unauthorized Payme request: expected ${expectedAuth}, got ${authHeader}`);
+    console.warn(`Unauthorized Payme request: got ${authHeader}`);
     return res.json({ id, error: { code: -32504, message: "Error auth" } });
   }
 
-  // Payme Protocol Implementation
   try {
     switch (method) {
       case "CheckPerformTransaction":
@@ -79,21 +87,38 @@ const paymeHandler = async (req: Request, res: Response) => {
       case "GetStatement":
         return await handleGetStatement(params, id, res);
       default:
-        console.warn(`Unknown Payme method requested: ${method}`);
+        console.warn(`Unknown Payme method: ${method}`);
         return res.json({ id, error: { code: -32601, message: "Method not found" } });
     }
   } catch (err) {
-    console.error("Payme API Processing Error:", err);
-    return res.json({ id, error: { code: -31008, message: "Internal Server Error" } });
+    console.error("Payme API Error:", err);
+    return res.json({ id, error: { code: -31008, message: "Internal Error" } });
   }
 };
 
-app.all("/api/payme", paymeHandler);
-app.all("/api/payme/", paymeHandler);
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", time: new Date().toISOString() });
+});
+
+// Use a more flexible route matcher for Payme
+app.all(["/api/payme", "/api/payme/"], paymeHandler);
+
+// Catch-all for undefined /api routes
+app.all("/api/*", (req: Request, res: Response) => {
+  res.status(404).json({ 
+    error: "API endpoint not found", 
+    path: req.path,
+    method: req.method 
+  });
+});
 
 // --- Payme Method Handlers ---
 
 async function handleCheckPerform(params: any, id: any, res: any) {
+  if (!params || !params.account) {
+    return res.json({ id, error: { code: -31050, message: "Account missing" } });
+  }
+
   const { amount, account } = params;
   const orderId = account.order_id;
 
