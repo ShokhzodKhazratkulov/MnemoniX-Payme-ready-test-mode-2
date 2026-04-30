@@ -1,0 +1,7 @@
+{
+  "name": "Remix: MnemoniX: Master vocabulary with mnemonics v2 monetize app - payme start on 30/04",
+  "description": "Xorijiy so\u0027zlarni assotsiatsiyalar va qiziqarli tasavvurlar orqali bir zumda eslab qolishga yordam beruvchi aqlli yordamchi.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

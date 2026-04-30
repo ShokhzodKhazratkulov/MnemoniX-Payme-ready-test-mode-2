@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Authenticating...</title>
+</head>
+<body>
+  <p>Completing authentication, please wait...</p>
+  <script>
+    // This page is used as a redirect target for Supabase OAuth popups.
+    // It sends a message to the opener window and then closes itself.
+    if (window.opener) {
+      window.opener.postMessage({ type: 'SUPABASE_AUTH_SUCCESS' }, '*');
+      window.close();
+    } else {
+      // If not in a popup, just redirect to home
+      window.location.href = '/';
+    }
+  </script>
+</body>
+</html>
