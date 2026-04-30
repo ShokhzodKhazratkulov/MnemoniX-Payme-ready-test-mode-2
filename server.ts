@@ -1,10 +1,10 @@
 
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import bodyParser from "body-parser";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
+import cors from "cors";
 
 dotenv.config();
 
@@ -17,25 +17,49 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
 );
 
-app.use(bodyParser.json());
+// Enable CORS for all routes (important for cross-origin Payme test tools)
+app.use(cors());
+
+// Use Express built-in body parsing
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Request Logger Middleware for debugging API calls
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.path.startsWith('/api')) {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    if (req.method === 'POST') {
+      console.log('Body:', JSON.stringify(req.body, null, 2));
+    }
+  }
+  next();
+});
 
 // Payme Merchant API Handler
-app.post("/api/payme", async (req: Request, res: Response) => {
+// Supporting both /api/payme and /api/payme/
+const paymeHandler = async (req: Request, res: Response) => {
+  // If it's a GET request, return a simple status (useful for verification)
+  if (req.method === 'GET') {
+    return res.json({ status: "Payme API is active", path: req.path });
+  }
+
   const { method, params, id } = req.body;
   const authHeader = req.headers.authorization;
+
+  console.log(`Payme Method: ${method}, Request ID: ${id}`);
 
   // Basic Auth Check
   // Payme sends: Authorization: Basic Base64(Paycom:SECRET_KEY)
   const paymeKey = process.env.PAYME_KEY;
   if (!paymeKey) {
-    console.error("PAYME_KEY is not defined in environment variables");
-    return res.json({ id, error: { code: -32504, message: "Server configuration error" } });
+    console.error("CRITICAL: PAYME_KEY is not defined in environment variables");
+    return res.json({ id, error: { code: -32504, message: "Server configuration error (missing key)" } });
   }
 
   const expectedAuth = `Basic ${Buffer.from(`Paycom:${paymeKey}`).toString('base64')}`;
   
   if (!authHeader || authHeader !== expectedAuth) {
-    console.warn("Unauthorized Payme request attempted");
+    console.warn(`Unauthorized Payme request: expected ${expectedAuth}, got ${authHeader}`);
     return res.json({ id, error: { code: -32504, message: "Error auth" } });
   }
 
@@ -55,13 +79,17 @@ app.post("/api/payme", async (req: Request, res: Response) => {
       case "GetStatement":
         return await handleGetStatement(params, id, res);
       default:
+        console.warn(`Unknown Payme method requested: ${method}`);
         return res.json({ id, error: { code: -32601, message: "Method not found" } });
     }
   } catch (err) {
-    console.error("Payme API Error:", err);
+    console.error("Payme API Processing Error:", err);
     return res.json({ id, error: { code: -31008, message: "Internal Server Error" } });
   }
-});
+};
+
+app.all("/api/payme", paymeHandler);
+app.all("/api/payme/", paymeHandler);
 
 // --- Payme Method Handlers ---
 
@@ -74,9 +102,19 @@ async function handleCheckPerform(params: any, id: any, res: any) {
   }
 
   // Check if payment already exists in database
-  const { data: payment, error } = await supabase.from('payments').select('*').eq('order_id', orderId).maybeSingle();
+  const { data: payment, error } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('order_id', orderId)
+    .maybeSingle();
 
-  if (error || !payment) {
+  if (error) {
+    console.error("Supabase error finding order:", error);
+    return res.json({ id, error: { code: -31050, message: "Database error" } });
+  }
+
+  if (!payment) {
+    console.warn(`Order not found for CheckPerformTransaction: ${orderId}`);
     return res.json({ id, error: { code: -31050, message: "Order not found" } });
   }
 
@@ -277,8 +315,26 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req: Request, res: Response) => {
-      res.sendFile(path.join(distPath, "index.html"));
+    
+    // Important: Handle *all* other requests
+    app.all("*", (req: Request, res: Response) => {
+      // Don't serve HTML for API paths that missed
+      if (req.path.startsWith('/api/')) {
+        console.warn(`API Route not found: ${req.method} ${req.path}`);
+        return res.status(404).json({ 
+          error: "API route not found",
+          path: req.path,
+          method: req.method
+        });
+      }
+      
+      // For all other GET requests, serve the SPA
+      if (req.method === 'GET') {
+        return res.sendFile(path.join(distPath, "index.html"));
+      }
+      
+      // For other methods to non-API routes, return 404
+      res.status(404).send("Not Found");
     });
   }
 
