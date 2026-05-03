@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "start": "node server.ts",
-    "build": "vite build",
+    "start": "node index.js",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --outfile=index.js --external:vite",
     "preview": "vite preview",
     "lint": "tsc --noEmit"
   },
@@ -39,6 +39,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.0.0",
     "dotenv": "^17.4.2",
+    "esbuild": "^0.28.0",
     "tailwindcss": "^4.2.1",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"

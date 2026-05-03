@@ -46,7 +46,8 @@ const paymeHandler = async (req: Request, res: Response) => {
       status: "Payme API is active", 
       path: req.path,
       method: req.method,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      note: "This is the endpoint you must put in Payme Cabinet"
     });
   }
 
