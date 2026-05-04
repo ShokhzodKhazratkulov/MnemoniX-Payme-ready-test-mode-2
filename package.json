@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "start": "node index.js",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --outfile=index.js --external:vite",
+    "build": "npx vite build && npx esbuild server.ts --bundle --platform=node --format=esm --outfile=index.js --external:vite",
     "preview": "vite preview",
     "lint": "tsc --noEmit"
   },
@@ -27,10 +27,13 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "recharts": "^3.7.0",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "vite": "^6.2.0",
+    "esbuild": "^0.28.0",
+    "tailwindcss": "^4.2.1",
+    "@tailwindcss/vite": "^4.2.1"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.2.1",
     "@types/body-parser": "^1.19.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
@@ -39,9 +42,6 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.0.0",
     "dotenv": "^17.4.2",
-    "esbuild": "^0.28.0",
-    "tailwindcss": "^4.2.1",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "typescript": "~5.8.2"
   }
 }
